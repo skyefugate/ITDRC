@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gizmo Guardian (the Consumable Control App POC)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .app-container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333333;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input[type="text"], input[type="number"], select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .inventory-list, .audit-log {
+            list-style: none;
+            padding: 0;
+        }
+        .inventory-item, .audit-log-item {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <h1>Gizmo Guardian (the Consumable Control App POC)</h1>
+
+        <h2>Admin - Add Inventory</h2>
+        <form id="adminForm">
+            <input type="text" id="addItemName" placeholder="Item Name" required>
+            <input type="number" id="addItemQuantity" placeholder="Quantity" min="0" required>
+            <select id="vehicleNumber" required>
+                <option value="">Select Vehicle</option>
+            </select>
+            <button type="submit">Add Item</button>
+        </form>
+
+        <h2>Consume Inventory</h2>
+        <form id="consumeForm">
+            <select id="itemName" required>
+                <option value="">Select Item</option>
+            </select>
+            <input type="number" id="itemQuantity" placeholder="Quantity" min="0" required>
+            <select id="consumeVehicleNumber" required>
+                <option value="">Select Vehicle</option>
+            </select>
+            <button type="submit">Consume Item</button>
+        </form>
+
+        <h2>Inventory List</h2>
+        <ul id="inventoryList" class="inventory-list"></ul>
+
+        <h2>Audit Log</h2>
+        <ul id="auditLog" class="audit-log"></ul>
+
+        <h2>Manage Vehicles</h2>
+        <form id="vehicleForm">
+            <input type="text" id="newVehicleNumber" placeholder="New Vehicle Number" required>
+            <button type="submit">Add Vehicle</button>
+        </form>
+        <ul id="vehicleList" class="inventory-list"></ul>
+    </div>
+
+    <script>
+        const adminForm = document.getElementById('adminForm');
+        const consumeForm = document.getElementById('consumeForm');
+        const vehicleForm = document.getElementById('vehicleForm');
+        const inventoryList = document.getElementById('inventoryList');
+        const itemNameSelect = document.getElementById('itemName');
+        const auditLogList = document.getElementById('auditLog');
+        const vehicleNumberSelect = document.getElementById('vehicleNumber');
+        const consumeVehicleNumberSelect = document.getElementById('consumeVehicleNumber');
+        const vehicleList = document.getElementById('vehicleList');
+
+        adminForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const itemName = document.getElementById('addItemName').value.trim();
+            const itemQuantity = parseInt(document.getElementById('addItemQuantity').value, 10);
+            const vehicleNumber = vehicleNumberSelect.value;
+            if (itemName && vehicleNumber) {
+                addItemToInventory(itemName, itemQuantity, vehicleNumber);
+                adminForm.reset();
+            }
+        });
+
+        consumeForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const itemName = itemNameSelect.value;
+            const itemQuantity = parseInt(document.getElementById('itemQuantity').value, 10);
+            const vehicleNumber = consumeVehicleNumberSelect.value;
+
+            if (itemName && vehicleNumber) {
+                consumeItem(itemName, itemQuantity, vehicleNumber);
+                consumeForm.reset();
+            }
+        });
+
+        vehicleForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const newVehicleNumber = document.getElementById('newVehicleNumber').value.trim();
+            if (newVehicleNumber) {
+                addVehicle(newVehicleNumber);
+                vehicleForm.reset();
+            }
+        });
+
+        function addItemToInventory(name, quantity, vehicle) {
+            const inventory = JSON.parse(localStorage.getItem('inventory')) || {};
+            if (!inventory[vehicle]) {
+                inventory[vehicle] = {};
+            }
+            if (inventory[vehicle][name]) {
+                inventory[vehicle][name] += quantity;
+            } else {
+                inventory[vehicle][name] = quantity;
+            }
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+            loadInventory();
+        }
+
+        function consumeItem(name, quantity, vehicle) {
+            const inventory = JSON.parse(localStorage.getItem('inventory')) || {};
+            if (inventory[vehicle] && inventory[vehicle][name] && inventory[vehicle][name] >= quantity) {
+                inventory[vehicle][name] -= quantity;
+                localStorage.setItem('inventory', JSON.stringify(inventory));
+                addItemToLog(name, quantity, vehicle);
+                loadInventory();
+            } else {
+                alert('Not enough inventory');
+            }
+        }
+
+        function addItemToLog(name, quantity, vehicle) {
+            const auditLog = JSON.parse(localStorage.getItem('auditLog')) || [];
+            auditLog.push({
+                name,
+                quantity,
+                vehicle,
+                date: new Date().toLocaleString()
+            });
+            localStorage.setItem('auditLog', JSON.stringify(auditLog));
+            loadAuditLog();
+        }
+
+        function addVehicle(vehicle) {
+            const vehicles = JSON.parse(localStorage.getItem('vehicles')) || [];
+            if (!vehicles.includes(vehicle)) {
+                vehicles.push(vehicle);
+                localStorage.setItem('vehicles', JSON.stringify(vehicles));
+                loadVehicles();
+            } else {
+                alert('Vehicle number already exists');
+            }
+        }
+
+        function removeVehicle(vehicle) {
+            let vehicles = JSON.parse(localStorage.getItem('vehicles')) || [];
+            vehicles = vehicles.filter(v => v !== vehicle);
+            localStorage.setItem('vehicles', JSON.stringify(vehicles));
+            loadVehicles();
+        }
+
+        function loadInventory() {
+            const inventory = JSON.parse(localStorage.getItem('inventory')) || {};
+            itemNameSelect.innerHTML = '<option value="">Select Item</option>';
+            inventoryList.innerHTML = '';
+            for (let vehicle in inventory) {
+                for (let item in inventory[vehicle]) {
+                    if (inventory[vehicle][item] < 0) {
+                        inventory[vehicle][item] = 0;
+                    }
+                    const listItem = document.createElement('li');
+                    listItem.className = 'inventory-item';
+                    listItem.textContent = `Vehicle ${vehicle}: ${item} - Quantity: ${inventory[vehicle][item]}`;
+                    inventoryList.appendChild(listItem);
+
+                    const option = document.createElement('option');
+                    option.value = item;
+                    option.textContent = item;
+                    itemNameSelect.appendChild(option);
+                }
+            }
+        }
+
+        function loadAuditLog() {
+            const auditLog = JSON.parse(localStorage.getItem('auditLog')) || [];
+            auditLogList.innerHTML = '';
+            auditLog.forEach(log => {
+                const listItem = document.createElement('li');
+                listItem.className = 'audit-log-item';
+                listItem.textContent = `${log.date} - ${log.name} - Quantity: ${log.quantity} - Vehicle: ${log.vehicle}`;
+                auditLogList.appendChild(listItem);
+            });
+        }
+
+        function loadVehicles() {
+            const vehicles = JSON.parse(localStorage.getItem('vehicles')) || [];
+            vehicleNumberSelect.innerHTML = '<option value="">Select Vehicle</option>';
+            consumeVehicleNumberSelect.innerHTML = '<option value="">Select Vehicle</option>';
+            vehicleList.innerHTML = '';
+            vehicles.forEach(vehicle => {
+                const option1 = document.createElement('option');
+                option1.value = vehicle;
+                option1.textContent = vehicle;
+                vehicleNumberSelect.appendChild(option1);
+
+                const option2 = document.createElement('option');
+                option2.value = vehicle;
+                option2.textContent = vehicle;
+                consumeVehicleNumberSelect.appendChild(option2);
+
+                const listItem = document.createElement('li');
+                listItem.className = 'inventory-item';
+                listItem.textContent = `Vehicle ${vehicle}`;
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.addEventListener('click', () => removeVehicle(vehicle));
+                listItem.appendChild(removeButton);
+                vehicleList.appendChild(listItem);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            loadInventory();
+            loadAuditLog();
+            loadVehicles();
+        });
+    </script>
+</body>
+</html>
